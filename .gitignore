@@ -1,0 +1,21 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+
+# Airflow-specific
+airflow.cfg
+unittests.cfg
+logs/
+airflow_env/
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+
+# Udacity course files
+udacity/common/.*
+solution/
+
+# Environment files
+.env
+.venv/
+*.env

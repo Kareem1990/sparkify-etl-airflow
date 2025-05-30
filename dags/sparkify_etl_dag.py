@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
+from airflow.operators.postgres_operator import PostgresOperator
 from airflow.models import Variable
 
 # Importing custom operators we created
@@ -10,7 +11,7 @@ from plugins.operators.load_dimension import LoadDimensionOperator  # Defined in
 from plugins.operators.data_quality import DataQualityOperator  # Defined in plugins/operators/data_quality.py
 from helpers.sql_queries import SqlQueries  # Defined in helpers/sql_queries.py
 
-# Default arguments for the DAG (sparkify_etl_dag.py)
+# Default arguments for the DAG
 default_args = {
     'owner': 'kareem',
     'start_date': datetime(2025, 1, 1),
@@ -20,7 +21,7 @@ default_args = {
     'catchup': False
 }
 
-# DAG definition (sparkify_etl_dag.py)
+# DAG definition
 with DAG('sparkify_etl_dag',
          default_args=default_args,
          description='Load and transform data in Redshift with Airflow',
@@ -28,10 +29,18 @@ with DAG('sparkify_etl_dag',
          max_active_runs=1
          ) as dag:
 
-    # Dummy start task (sparkify_etl_dag.py)
+    # ✅ Task: Create tables in Redshift using raw SQL script (from sql/create_tables.sql)
+    create_tables = PostgresOperator(
+        task_id='Create_tables',
+        dag=dag,
+        postgres_conn_id='redshift',
+        sql='sql/create_tables.sql'
+    )
+
+    # ✅ Task: Start DAG execution (Dummy task for DAG structuring)
     start_operator = DummyOperator(task_id='Begin_execution')
 
-    # Stage events data from S3 to Redshift staging table (uses StageToRedshiftOperator in stage_redshift.py)
+    # ✅ Task: Stage events data from S3 to Redshift (logs JSON) into 'staging_events' table
     stage_events_to_redshift = StageToRedshiftOperator(
         task_id='Stage_events',
         redshift_conn_id='redshift',
@@ -43,7 +52,7 @@ with DAG('sparkify_etl_dag',
         region='us-west-2'
     )
 
-    # Stage songs data from S3 to Redshift staging table (uses StageToRedshiftOperator in stage_redshift.py)
+    # ✅ Task: Stage songs data from S3 to Redshift (songs metadata) into 'staging_songs' table
     stage_songs_to_redshift = StageToRedshiftOperator(
         task_id='Stage_songs',
         redshift_conn_id='redshift',
@@ -55,7 +64,7 @@ with DAG('sparkify_etl_dag',
         region='us-west-2'
     )
 
-    # Load songplays fact table from staging tables (uses LoadFactOperator in load_fact.py)
+    # ✅ Task: Load songplays fact table from staging tables using custom SQL
     load_songplays_table = LoadFactOperator(
         task_id='Load_songplays_fact_table',
         dag=dag,
@@ -65,7 +74,7 @@ with DAG('sparkify_etl_dag',
         append_data=False
     )
 
-    # Load users dimension table (uses LoadDimensionOperator in load_dimension.py)
+    # ✅ Task: Load users dimension table from staging data
     load_user_dimension_table = LoadDimensionOperator(
         task_id='Load_user_dim_table',
         dag=dag,
@@ -75,7 +84,7 @@ with DAG('sparkify_etl_dag',
         append_data=False
     )
 
-    # Load songs dimension table (uses LoadDimensionOperator in load_dimension.py)
+    # ✅ Task: Load songs dimension table from staging data
     load_song_dimension_table = LoadDimensionOperator(
         task_id='Load_song_dim_table',
         dag=dag,
@@ -85,7 +94,7 @@ with DAG('sparkify_etl_dag',
         append_data=False
     )
 
-    # Load artists dimension table (uses LoadDimensionOperator in load_dimension.py)
+    # ✅ Task: Load artists dimension table from staging data
     load_artist_dimension_table = LoadDimensionOperator(
         task_id='Load_artist_dim_table',
         dag=dag,
@@ -95,7 +104,7 @@ with DAG('sparkify_etl_dag',
         append_data=False
     )
 
-    # Load time dimension table (uses LoadDimensionOperator in load_dimension.py)
+    # ✅ Task: Load time dimension table from transformed songplays data
     load_time_dimension_table = LoadDimensionOperator(
         task_id='Load_time_dim_table',
         dag=dag,
@@ -105,18 +114,18 @@ with DAG('sparkify_etl_dag',
         append_data=False
     )
 
-    # Run data quality checks on all final tables (uses DataQualityOperator in data_quality.py)
+    # ✅ Task: Run data quality checks on final tables (songplays, users, songs, artists, time)
     run_quality_checks = DataQualityOperator(
         task_id='Run_data_quality_checks',
         redshift_conn_id='redshift',
         tables=['songplays', 'users', 'songs', 'artists', 'time']
     )
 
-    # Dummy end task (sparkify_etl_dag.py)
+    # ✅ Task: End DAG execution (Dummy task for DAG structuring)
     end_operator = DummyOperator(task_id='Stop_execution')
 
-    # Define task dependencies (sparkify_etl_dag.py)
-    start_operator >> [stage_events_to_redshift, stage_songs_to_redshift] >> load_songplays_table
+    # ✅ Task dependencies
+    create_tables >> start_operator >> [stage_events_to_redshift, stage_songs_to_redshift] >> load_songplays_table
 
     load_songplays_table >> [
         load_user_dimension_table,
