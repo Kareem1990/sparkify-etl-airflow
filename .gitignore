@@ -19,3 +19,5 @@ solution/
 .env
 .venv/
 *.env
+# AWS 
+.aws_credentials.json

@@ -1,0 +1,78 @@
+version: '3'
+services:
+  postgres:
+    image: postgres:13
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    networks:
+      - airflow
+
+  airflow-init:
+    image: apache/airflow:2.7.3
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    entrypoint: >
+      /bin/bash -c "
+      airflow db init &&
+      airflow users create --username KareemRizk --firstname Kareem --lastname Rizk --role Admin --email kareem.magdy5@example.com --password password
+      "
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - ./sql:/opt/airflow/sql
+      - ./.aws_credentials.json:/opt/airflow/secrets/.aws_credentials.json
+    networks:
+      - airflow
+
+  webserver:
+    image: apache/airflow:2.7.3
+    restart: always
+    depends_on:
+      - postgres
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+      AIRFLOW__CORE__FERNET_KEY: ''
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    command: webserver
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - ./sql:/opt/airflow/sql
+      - ./.aws_credentials.json:/opt/airflow/secrets/.aws_credentials.json
+    networks:
+      - airflow
+
+  scheduler:
+    image: apache/airflow:2.7.3
+    restart: always
+    depends_on:
+      - webserver
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    command: scheduler
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./plugins:/opt/airflow/plugins
+      - ./sql:/opt/airflow/sql
+      - ./.aws_credentials.json:/opt/airflow/secrets/.aws_credentials.json
+    networks:
+      - airflow
+
+volumes:
+  postgres-db-volume:
+
+networks:
+  airflow:
